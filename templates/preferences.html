@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}My Preferences - NewsCast{% endblock %}
+
+{% block content %}
+    <h2>Set Your News Preference</h2>
+    <form action="{{ url_for('preferences') }}" method="post">
+        <label for="category">Choose your preferred news category:</label>
+        <select name="category" id="category">
+            {% for category_name in news_feeds %}
+            <option value="{{ category_name }}" {% if user and user.preferred_category == category_name %}selected{% endif %}>{{ category_name }}</option>
+            {% endfor %}
+        </select>
+        <br><br>
+
+        <label for="region">Choose your preferred region:</label>
+        <select name="region" id="region">
+            <option value="">-- Select a Region --</option>
+            {% for continent, countries in regions.items() %}
+            <optgroup label="{{ continent }}">
+                {% for country_name, country_code in countries %}
+                <option value="{{ country_code }}" {% if user and user.preferred_region == country_code %}selected{% endif %}>{{ country_name }}</option>
+                {% endfor %}
+            </optgroup>
+            {% endfor %}
+        </select>
+        <br><br>
+
+        <div style="text-align: center; font-weight: bold; margin: 20px 0; font-size: 1.2em;">
+            OR
+        </div>
+
+        <h2>Follow up to 5 topics</h2>
+        {% for i in range(1, 6) %}
+        <input type="text" name="topic{{i}}" placeholder="Topic {{i}}" value="{{ followed_topics[i-1] if followed_topics and i-1 < followed_topics|length else '' }}"><br>
+        {% endfor %}
+        <br>
+        <input type="submit" value="Save Preference">
+    </form>
+{% endblock %}

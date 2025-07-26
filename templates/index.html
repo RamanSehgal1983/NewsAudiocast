@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Today's Top Stories</h1>
+        {% if session.get('combined_summaries') %}
+            <button id="play-newscast" class="btn btn-primary">Listen to these news</button>
+        {% endif %}
+    </div>
+    <audio id="newscast-audio" controls class="w-100 mb-4" style="display: none;"></audio>
+
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+        {% for entry in entries %}
+        <div class="col d-flex align-items-stretch">
+            <div class="news-item">
+                <div class="news-content flex-grow-1">
+                    <h5 class="card-title"><a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer">{{ entry.title }}</a></h5>
+                    <p class="card-text">{{ summaries[loop.index0] }}</p>
+                </div>
+                <div class="news-footer mt-auto text-end pt-3 border-top">
+                    <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">Read More</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+document.getElementById('play-newscast')?.addEventListener('click', function() {
+    var audioPlayer = document.getElementById('newscast-audio');
+    var button = this;
+    button.textContent = 'Generating...';
+    button.disabled = true;
+
+    fetch('/generate_audio')
+        .then(response => response.json())
+        .then(data => {
+            if (data.audio_file) {
+                audioPlayer.src = data.audio_file;
+                audioPlayer.playbackRate = 1.25;
+                audioPlayer.style.display = 'block';
+                audioPlayer.play();
+                button.style.display = 'none';
+            } else {
+                alert(data.error || 'An unknown error occurred.');
+                button.textContent = 'Listen to these news';
+                button.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching audio:', error);
+            alert('Failed to generate audio.');
+            button.textContent = 'Listen to these news';
+            button.disabled = false;
+        });
+});
+</script>
+{% endblock %}

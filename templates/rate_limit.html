@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}Service Unavailable - NewsCast{% endblock %}
+
+{% block content %}
+    <h1>Service Temporarily Unavailable</h1>
+    <p>The AI API limit was exceeded by the server at <strong>{{ last_error_time }}</strong>.</p>
+    <p>Please try again 24 hours after that time.</p>
+    <p>We apologize for the inconvenience.</p>
+{% endblock %}

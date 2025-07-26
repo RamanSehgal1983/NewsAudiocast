@@ -1,0 +1,46 @@
+/* Custom styles for NewsReader app */
+
+body {
+    background-color: #f8f9fa; /* A light grey background for the page */
+}
+
+.news-item {
+    display: flex;
+    height: 100%; /* Ensures the card fills the column, aligning footers*/
+    width: 100%; /* Ensure the card fills its column */
+    flex-direction: column; /* Stack content and footer vertically */
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    overflow: hidden; /* Ensures content respects the border radius */
+
+    /* --- Newspaper background effect --- */
+    background-color: #fdfaf1; /* A fallback color that looks like old paper */
+    /* The URL points to an image you will add in the next step */
+    background-image: url('../Images/newspaper_bg.png');
+    background-blend-mode: multiply; /* Blends the color and image for a nice effect */
+    background-size: cover;
+    padding: 20px;
+    border: 1px solid #dcdacb;
+}
+
+.news-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+}
+
+.news-item .card-title a {
+    text-decoration: none;
+    color: #212529;
+    font-family: 'Playfair Display', serif; /* A classic serif font for headlines */
+}
+
+.news-item .card-title a:hover {
+    color: #0056b3;
+}
+
+.news-item .card-text {
+    font-family: 'Georgia', serif; /* A classic serif font for body text */
+    color: #444;
+    line-height: 1.6;
+}
