@@ -7,9 +7,8 @@ maintainable way to interact with the database compared to raw SQL queries.
 """
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, TIMESTAMP
 import uuid
-from sqlalchemy.orm import relationship, sessionmaker, declarative_base
+from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
-from config import DATABASE_URL
 
 Base = declarative_base()
 
@@ -53,17 +52,3 @@ class ApiTokenUsage(Base):
     prompt_tokens = Column(Integer, nullable=False)
     completion_tokens = Column(Integer, nullable=False)
     total_tokens = Column(Integer, nullable=False)
-
-
-# --- Database Engine and Session ---
-# This engine and session factory will be used by the application
-# to interact with the database.
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()

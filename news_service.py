@@ -14,7 +14,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from constants import NEWS_FEEDS
 from utils import build_full_url
-from models import User, SessionLocal
+from models import User
+from database import SessionLocal
 
 logger = logging.getLogger(__name__)
 

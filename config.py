@@ -31,10 +31,16 @@ AI_MODEL_NAME = os.getenv("AI_MODEL_NAME", "gemini-1.5-flash-latest")
 # Loaded from environment for sending newscasts and password resets.
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 # --- Environment Configuration ---
 FLASK_ENV = os.getenv("FLASK_ENV", "production")
+
+# --- Database Configuration ---
+# On many hosting platforms (like Render), an internal URL is provided for performance.
+# This logic prioritizes the internal URL if it's available, falling back to the standard one.
+DATABASE_URL = os.getenv("INTERNAL_DATABASE_URL") or os.getenv("DATABASE_URL")
+if os.getenv("INTERNAL_DATABASE_URL"):
+    print("INFO: INTERNAL_DATABASE_URL found. Using it for the database connection.")
 
 # --- Validation ---
 # Ensure that the required variables have been loaded.

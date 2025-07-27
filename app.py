@@ -24,7 +24,8 @@ from ai_utils import summarize_texts_batch, rephrase_as_anchor, RateLimitExcepti
 from news_service import get_personalized_news
 from utils import send_email
 from config import FLASK_SECRET_KEY, AI_MODEL_NAME, DATABASE_URL
-from models import User, TopicPreference, ApiError, SessionLocal, engine
+from models import User, TopicPreference, ApiError
+from database import SessionLocal
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY

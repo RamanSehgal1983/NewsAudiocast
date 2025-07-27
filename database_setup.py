@@ -9,8 +9,8 @@ import logging
 import sys
 import time
 import os
-from sqlalchemy import create_engine
 from models import Base
+from database import engine
 from config import DATABASE_URL, FLASK_ENV
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,6 @@ def setup_database():
     for attempt in range(max_retries):
         try:
             logger.info(f"Initializing database in {FLASK_ENV} mode (attempt {attempt + 1}/{max_retries})...")
-            engine = create_engine(DATABASE_URL)
             
             # Test the connection before proceeding
             with engine.connect() as connection:

@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 
+from config import DATABASE_URL
 from models import Base, User, TopicPreference, ApiError, ApiTokenUsage
 
 # --- Setup ---
@@ -33,8 +34,6 @@ load_dotenv()
 NEWSAPP_DB = 'newsapp.db'
 API_USAGE_DB = 'api_usage.db'
 
-# --- Destination Database (PostgreSQL) ---
-DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL or not DATABASE_URL.startswith("postgresql"):
     raise ValueError("DATABASE_URL is not configured for PostgreSQL in your .env file.")
 

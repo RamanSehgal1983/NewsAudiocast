@@ -17,7 +17,8 @@ import google.generativeai as genai
 from google.api_core.exceptions import ResourceExhausted
 from sqlalchemy.exc import SQLAlchemyError
 from config import GOOGLE_API_KEY, AI_MODEL_NAME
-from models import SessionLocal, ApiError
+from models import ApiError
+from database import SessionLocal
 
 logger = logging.getLogger(__name__)
 

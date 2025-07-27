@@ -2,7 +2,8 @@ import logging
 from typing import Optional
 from sqlalchemy.exc import SQLAlchemyError
 
-from models import SessionLocal, ApiTokenUsage
+from models import ApiTokenUsage
+from database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
