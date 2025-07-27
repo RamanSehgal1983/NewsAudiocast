@@ -13,7 +13,6 @@ The script performs the following steps for each user:
 5. Sends an email to the user with the generated media file attached.
 """
 import os
-import sqlite3
 from gtts import gTTS
 import datetime
 import logging
@@ -22,8 +21,10 @@ from bs4 import BeautifulSoup
 from ai_utils import summarize_texts_batch, rephrase_as_anchor, RateLimitException
 from news_service import get_personalized_news
 from utils import send_email
-from token_db_logger import initialize_database, log_token_usage
+from token_db_logger import log_token_usage
 from config import AI_MODEL_NAME
+from models import SessionLocal, User
+from sqlalchemy.exc import SQLAlchemyError
 
 # --- Logging Setup ---
 # Configure the logger to write to a file and the console
@@ -87,15 +88,17 @@ def create_video_from_audio(audio_path, image_path, output_path):
         return None
 
 def get_all_users():
-    """Fetches all users from the database."""
+    """Fetches all users from the database using SQLAlchemy."""
+    db = SessionLocal()
     try:
-        with sqlite3.connect('newsapp.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, email FROM users")
-            return cursor.fetchall()
-    except sqlite3.Error as e:
+        # Query for id and email of all users. This returns a list of tuples.
+        users = db.query(User.id, User.email).all()
+        return users
+    except SQLAlchemyError as e:
         logging.critical(f"Database error when fetching users: {e}")
         return []
+    finally:
+        db.close()
 
 def generate_newscast_content(user_id):
     """Fetches news, summarizes it, and generates a script."""
@@ -213,9 +216,6 @@ def main():
     """Main function to generate and email the audiocast."""
     logging.info("="*50)
     logging.info("Starting daily newscast generation process...")
-
-    # Ensure the token tracking database is ready
-    initialize_database()
 
     all_users = get_all_users()
     if not all_users:

@@ -12,11 +12,12 @@ It is responsible for:
 """
 import logging
 import re
-import sqlite3
 from datetime import datetime, timedelta
 import google.generativeai as genai
 from google.api_core.exceptions import ResourceExhausted
+from sqlalchemy.exc import SQLAlchemyError
 from config import GOOGLE_API_KEY, AI_MODEL_NAME
+from models import SessionLocal, ApiError
 
 logger = logging.getLogger(__name__)
 
@@ -36,21 +37,23 @@ def _log_rate_limit_error_if_needed():
     Logs a rate limit error to the database if one hasn't been logged recently.
     This prevents spamming the log for every request after the limit is hit.
     """
+    db = SessionLocal()
     try:
-        with sqlite3.connect('newsapp.db') as conn:
-            cursor = conn.cursor()
-            # Check for the most recent rate limit error
-            cursor.execute("SELECT timestamp FROM api_errors ORDER BY timestamp DESC LIMIT 1")
-            last_error = cursor.fetchone()
+        # Check for the most recent rate limit error using SQLAlchemy
+        last_error = db.query(ApiError).order_by(ApiError.timestamp.desc()).first()
 
-            # Only log if no error exists or the last one was more than 23 hours ago
-            if not last_error or (datetime.now() - datetime.fromisoformat(last_error[0])) > timedelta(hours=23):
-                logger.info("Logging new API rate limit error to the database.")
-                cursor.execute("INSERT INTO api_errors (error_message) VALUES (?)",
-                               ("Google Gemini API rate limit exceeded.",))
-                conn.commit()
-    except sqlite3.Error as e:
+        # The timestamp from SQLAlchemy is a datetime object, no need for fromisoformat
+        # Only log if no error exists or the last one was more than 23 hours ago
+        if not last_error or (datetime.now() - last_error.timestamp) > timedelta(hours=23):
+            logger.info("Logging new API rate limit error to the database.")
+            new_error = ApiError(error_message="Google Gemini API rate limit exceeded.")
+            db.add(new_error)
+            db.commit()
+    except SQLAlchemyError as e:
         logger.error(f"Database error while trying to log API rate limit: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 def _call_google_api(prompt: str, temperature: float):
     """

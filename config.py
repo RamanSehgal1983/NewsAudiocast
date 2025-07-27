@@ -31,11 +31,15 @@ AI_MODEL_NAME = os.getenv("AI_MODEL_NAME", "gemini-1.5-flash-latest")
 # Loaded from environment for sending newscasts and password resets.
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # --- Validation ---
 # Ensure that the required variables have been loaded.
 if not GOOGLE_API_KEY:
     raise ValueError("A GOOGLE_API_KEY must be set in your environment variables or .env file.")
+if not DATABASE_URL:
+    # For local development, you can fall back to SQLite
+    DATABASE_URL = "sqlite:///newsapp.db"
 if not SENDER_EMAIL or not SENDER_PASSWORD:
     raise ValueError("SENDER_EMAIL and SENDER_PASSWORD must be set in your environment variables or .env file.")
 if not FLASK_SECRET_KEY:

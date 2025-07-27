@@ -9,13 +9,13 @@ web-based interactions, including:
 - Interacting with AI utilities (ai_utils) to summarize and rephrase news.
 - Rendering HTML templates to display content to the user.
 """
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, g
 from gtts import gTTS
 import os
 import hashlib
-import sqlite3
 from itsdangerous import URLSafeTimedSerializer
 from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
 
 from token_db_logger import initialize_database, log_token_usage
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -24,7 +24,8 @@ from constants import NEWS_FEEDS, REGIONS
 from ai_utils import summarize_texts_batch, rephrase_as_anchor, RateLimitException
 from news_service import get_personalized_news
 from utils import send_email
-from config import FLASK_SECRET_KEY, AI_MODEL_NAME
+from config import FLASK_SECRET_KEY, AI_MODEL_NAME, DATABASE_URL
+from models import User, TopicPreference, ApiError, SessionLocal, engine
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
@@ -32,21 +33,25 @@ app.secret_key = FLASK_SECRET_KEY
 # Initialize the token tracking database
 initialize_database()
 
+@app.before_request
+def before_request():
+    g.db = SessionLocal()
+
+@app.after_request
+def after_request(response):
+    g.db.close()
+    return response
+
 @app.route('/')
 def display_news():
     user_email = session.get('email')
     user = None
     user_id = None
 
-    # 1. Get user details from session if logged in
     if user_email:
-        with sqlite3.connect('newsapp.db') as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE email = ?", (user_email,))
-            user = cursor.fetchone()
-            if user:
-                user_id = user['id']
+        user = g.db.query(User).filter_by(email=user_email).first()
+        if user:
+            user_id = user.id
 
     # 2. Centralized call to the news service
     # It handles both logged-in (with user_id) and anonymous (user_id=None) users
@@ -69,16 +74,12 @@ def display_news():
     except RateLimitException:
         # If the API limit is hit, fetch the last error time and render a specific error page.
         last_error_time = "an unknown time"
-        try:
-            with sqlite3.connect('newsapp.db') as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT timestamp FROM api_errors ORDER BY timestamp DESC LIMIT 1")
-                last_error = cursor.fetchone()
-                if last_error:
-                    # Format the timestamp for display
-                    error_dt = datetime.fromisoformat(last_error[0])
-                    last_error_time = error_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
-        except sqlite3.Error as e:
+        last_error = g.db.query(ApiError).order_by(ApiError.timestamp.desc()).first()
+        if last_error:
+            # Format the timestamp for display
+            error_dt = last_error.timestamp
+            last_error_time = error_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+        else:
             app.logger.error(f"Could not fetch last API error time from DB: {e}")
         return render_template('rate_limit.html', last_error_time=last_error_time), 503
 
@@ -130,13 +131,9 @@ def generate_audio():
         user_id = None
         user_email = session.get('email')
         if user_email:
-            with sqlite3.connect('newsapp.db') as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("SELECT id FROM users WHERE email = ?", (user_email,))
-                user_row = cursor.fetchone()
-                if user_row:
-                    user_id = user_row['id']
+            user = g.db.query(User).filter_by(email=user_email).first()
+            if user:
+                user_id = user.id
         log_token_usage(
             model_name=AI_MODEL_NAME,
             prompt_tokens=usage_data.get('prompt_tokens', 0),
@@ -164,20 +161,24 @@ def register():
 
         hashed_password = generate_password_hash(password)
 
-        # Using 'with' for safe database connection handling
-        with sqlite3.connect('newsapp.db') as conn:
-            cursor = conn.cursor()
+        try:
             # Check if user already exists
-            cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
-            if cursor.fetchone():
+            existing_user = g.db.query(User).filter_by(email=email).first()
+            if existing_user:
                 flash('An account with this email already exists.', 'danger')
                 return redirect(url_for('register'))
 
-            cursor.execute("INSERT INTO users (email, password) VALUES (?, ?)", (email, hashed_password))
-            conn.commit()
+            new_user = User(email=email, password=hashed_password)
+            g.db.add(new_user)
+            g.db.commit()
 
-        flash('Registration successful! Please log in.', 'success')
-        return redirect(url_for('login'))
+            flash('Registration successful! Please log in.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            # Log the detailed error for debugging and show a generic message to the user.
+            app.logger.critical(f"Database error during registration for '{email}': {e}")
+            flash('A database error occurred during registration. Please try again later.', 'danger')
+            return render_template('register.html'), 500
 
     return render_template('register.html')
 
@@ -187,14 +188,10 @@ def login():
         email = request.form['email']
         password = request.form['password']
 
-        with sqlite3.connect('newsapp.db') as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
-            user = cursor.fetchone()
+        user = g.db.query(User).filter_by(email=email).first()
 
-        if user and check_password_hash(user['password'], password):
-            session['email'] = user['email']
+        if user and check_password_hash(user.password, password):
+            session['email'] = user.email
             app.logger.info(f"User '{email}' logged in successfully.")
             return redirect(url_for('loading'))
         else:
@@ -214,24 +211,19 @@ def logout():
 def forgot_password():
     if request.method == 'POST':
         email = request.form['email']
-        with sqlite3.connect('newsapp.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
-            user = cursor.fetchone()
+        user = g.db.query(User).filter_by(email=email).first()
 
-            if user:
-                s = URLSafeTimedSerializer(app.secret_key)
-                token = s.dumps(email, salt='password-reset-salt')
-                
-                expiry = datetime.now() + timedelta(hours=1)
-                cursor.execute("UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE email = ?",
-                               (token, expiry, email))
-                conn.commit()
-                
-                # Construct and send the email using the new utility
-                reset_url = url_for('reset_password', token=token, _external=True)
-                subject = "Password Reset Request"
-                body = f"""To reset your password, visit the following link:
+        if user:
+            s = URLSafeTimedSerializer(app.secret_key)
+            token = s.dumps(email, salt='password-reset-salt')
+            
+            user.reset_token = token
+            user.reset_token_expiry = datetime.now() + timedelta(hours=1)
+            g.db.commit()
+            
+            reset_url = url_for('reset_password', token=token, _external=True)
+            subject = "Password Reset Request"
+            body = f"""To reset your password, visit the following link:
 {reset_url}
 
 If you did not make this request then simply ignore this email and no changes will be made.
@@ -254,13 +246,11 @@ def reset_password(token):
         flash('The password reset link is invalid or has expired.', 'danger')
         return redirect(url_for('login'))
 
-    with sqlite3.connect('newsapp.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM users WHERE email = ? AND reset_token = ? AND reset_token_expiry > ?",
-            (email, token, datetime.now())
-        )
-        user = cursor.fetchone()
+    user = g.db.query(User).filter(
+        User.email == email,
+        User.reset_token == token,
+        User.reset_token_expiry > datetime.now()
+    ).first()
 
     if not user:
         flash('The password reset link is invalid or has expired.', 'danger')
@@ -276,15 +266,11 @@ def reset_password(token):
 
         hashed_password = generate_password_hash(password)
 
-        with sqlite3.connect('newsapp.db') as conn:
-            cursor = conn.cursor()
-            # Update password and clear reset token fields
-            cursor.execute(
-                "UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE email = ?",
-                (hashed_password, email)
-            )
-            conn.commit()
-            app.logger.info(f"Password reset successfully for user {email}")
+        user.password = hashed_password
+        user.reset_token = None
+        user.reset_token_expiry = None
+        g.db.commit()
+        app.logger.info(f"Password reset successfully for user {email}")
 
         flash('Your password has been successfully reset. Please log in.', 'success')
         return redirect(url_for('login'))
@@ -297,43 +283,33 @@ def preferences():
         return redirect(url_for('login'))
 
     email = session['email']
-    with sqlite3.connect('newsapp.db') as conn:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+    user = g.db.query(User).filter_by(email=email).first()
 
-        # Fetch user data
-        cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
-        user = cursor.fetchone()
+    if not user:
+        session.pop('email', None)
+        flash('User not found. Please log in again.', 'danger')
+        return redirect(url_for('login'))
 
-        if not user:
-            session.pop('email', None)
-            flash('User not found. Please log in again.', 'danger')
-            return redirect(url_for('login'))
+    if request.method == 'POST':
+        user.preferred_category = request.form['category']
+        user.preferred_region = request.form.get('region')
 
-        user_id = user['id']
+        # Using the relationship is much cleaner for updating topics
+        # First, remove all existing topic preferences for the user
+        g.db.query(TopicPreference).filter_by(user_id=user.id).delete()
 
-        if request.method == 'POST':
-            category = request.form['category']
-            region = request.form.get('region')
-            topics = [request.form[f'topic{i}'] for i in range(1, 6) if request.form.get(f'topic{i}')]
+        # Then, add the new ones
+        new_topics = [request.form[f'topic{i}'] for i in range(1, 6) if request.form.get(f'topic{i}')]
+        for topic_name in new_topics:
+            topic_pref = TopicPreference(user_id=user.id, topic_name=topic_name)
+            g.db.add(topic_pref)
 
-            # Update user's category and region
-            cursor.execute("UPDATE users SET preferred_category = ?, preferred_region = ? WHERE id = ?",
-                           (category, region, user_id))
+        g.db.commit()
+        flash('Your preferences have been saved!', 'success')
+        return redirect(url_for('preferences'))
 
-            # Update followed topics
-            cursor.execute("DELETE FROM topic_preferences WHERE user_id = ?", (user_id,))
-            if topics:
-                cursor.executemany("INSERT INTO topic_preferences (user_id, topic_name) VALUES (?, ?)",
-                                   [(user_id, topic) for topic in topics])
-            
-            conn.commit()
-            flash('Your preferences have been saved!', 'success')
-            return redirect(url_for('preferences'))
-
-        # For GET request, fetch current preferences
-        cursor.execute("SELECT topic_name FROM topic_preferences WHERE user_id = ?", (user_id,))
-        followed_topics = [row['topic_name'] for row in cursor.fetchall()]
+    # For GET request, fetch current preferences via the relationship
+    followed_topics = [topic.topic_name for topic in user.topics]
 
     return render_template('preferences.html',
                            news_feeds=NEWS_FEEDS,
@@ -343,14 +319,9 @@ def preferences():
 
 @app.route('/loading')
 def loading():
-    # This route is hit right after login. It needs the user object
-    # to render the navigation bar correctly.
+    """Renders a loading page while the initial news is fetched."""
     user = None
     if 'email' in session:
-        with sqlite3.connect('newsapp.db') as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE email = ?", (session['email'],))
-            user = cursor.fetchone()
+        user = g.db.query(User).filter_by(email=session['email']).first()
 
     return render_template('loading.html', user=user)
