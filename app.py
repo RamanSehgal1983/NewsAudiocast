@@ -17,16 +17,20 @@ import sqlite3
 from itsdangerous import URLSafeTimedSerializer
 from datetime import datetime, timedelta
 
+from token_db_logger import initialize_database, log_token_usage
 from werkzeug.security import generate_password_hash, check_password_hash
 from bs4 import BeautifulSoup
 from constants import NEWS_FEEDS, REGIONS
 from ai_utils import summarize_texts_batch, rephrase_as_anchor, RateLimitException
 from news_service import get_personalized_news
 from utils import send_email
-from config import FLASK_SECRET_KEY
+from config import FLASK_SECRET_KEY, AI_MODEL_NAME
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
+
+# Initialize the token tracking database
+initialize_database()
 
 @app.route('/')
 def display_news():
@@ -34,6 +38,7 @@ def display_news():
     user = None
     user_id = None
 
+    # 1. Get user details from session if logged in
     if user_email:
         with sqlite3.connect('newsapp.db') as conn:
             conn.row_factory = sqlite3.Row
@@ -43,23 +48,24 @@ def display_news():
             if user:
                 user_id = user['id']
 
-    # Centralized call to the news service
+    # 2. Centralized call to the news service
     # It handles both logged-in (with user_id) and anonymous (user_id=None) users
     combined_entries = get_personalized_news(user_id)
 
-    # Collect texts from entries that have a summary
+    # 3. Collect article content for summarization
+    # We only process entries that have a 'summary' attribute from the RSS feed.
     texts_to_summarize = []
     entries_with_summary = []
     for entry in combined_entries:
         if hasattr(entry, 'summary'):
             soup = BeautifulSoup(entry.summary, "html.parser")
             plain_text = soup.get_text()
-            texts_to_summarize.append(plain_text[:3000])
+            texts_to_summarize.append(plain_text[:3000]) # Truncate to avoid large payloads
             entries_with_summary.append(entry)
 
     try:
-        # Batch summarize all valid articles at once
-        batch_summaries = summarize_texts_batch(texts_to_summarize) if texts_to_summarize else []
+        # 4. Batch summarize all valid articles at once for efficiency
+        batch_summaries, usage_data = summarize_texts_batch(texts_to_summarize) if texts_to_summarize else ([], None)
     except RateLimitException:
         # If the API limit is hit, fetch the last error time and render a specific error page.
         last_error_time = "an unknown time"
@@ -76,22 +82,35 @@ def display_news():
             app.logger.error(f"Could not fetch last API error time from DB: {e}")
         return render_template('rate_limit.html', last_error_time=last_error_time), 503
 
+    # Log the token usage for the summarization call
+    if usage_data:
+        log_token_usage(
+            model_name=AI_MODEL_NAME,
+            prompt_tokens=usage_data.get('prompt_tokens', 0),
+            completion_tokens=usage_data.get('completion_tokens', 0),
+            total_tokens=usage_data.get('total_tokens', 0),
+            user_id=str(user_id) if user_id else "anonymous",
+            feature_name="batch-summarization"
+        )
+
+    # 5. Map summaries back to their original articles
     # Create a dictionary to map entry links to their summaries for easy lookup
     summary_map = {}
     if batch_summaries and len(batch_summaries) == len(entries_with_summary):
         for i, entry in enumerate(entries_with_summary):
             summary_map[entry.link] = batch_summaries[i]
 
-    # Build the final list of summaries in the same order as the original entries
+    # Build the final list of summaries in the same order as the original combined_entries
     summaries = [summary_map.get(entry.link, "No summary available for this article.") for entry in combined_entries]
 
-    # If there are summaries, combine them and store in the session for on-demand audio generation.
+    # 6. Store combined summaries in session for on-demand audio generation
     if batch_summaries:
         combined_summaries = " ".join(batch_summaries)
         session['combined_summaries'] = combined_summaries
     else:
         session.pop('combined_summaries', None)
 
+    # 7. Render the main page with all the data
     return render_template('index.html', entries=combined_entries, summaries=summaries, user=user)
 
 @app.route('/generate_audio')
@@ -102,9 +121,30 @@ def generate_audio():
         return jsonify({'error': 'No summaries available to generate audio.'}), 404
 
     try:
-        anchor_script = rephrase_as_anchor(combined_summaries)
+        anchor_script, usage_data = rephrase_as_anchor(combined_summaries)
     except RateLimitException:
         return jsonify({'error': 'AI limit exceeded by the website server, please try again in 24 hours'}), 503
+
+    # Log the token usage for the rephrasing call
+    if usage_data:
+        user_id = None
+        user_email = session.get('email')
+        if user_email:
+            with sqlite3.connect('newsapp.db') as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE email = ?", (user_email,))
+                user_row = cursor.fetchone()
+                if user_row:
+                    user_id = user_row['id']
+        log_token_usage(
+            model_name=AI_MODEL_NAME,
+            prompt_tokens=usage_data.get('prompt_tokens', 0),
+            completion_tokens=usage_data.get('completion_tokens', 0),
+            total_tokens=usage_data.get('total_tokens', 0),
+            user_id=str(user_id) if user_id else "anonymous",
+            feature_name="anchor-script-rephrasing"
+        )
 
     filename_hash = hashlib.md5(anchor_script.encode()).hexdigest()
     audio_filename = f"{filename_hash}.mp3"

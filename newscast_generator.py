@@ -19,9 +19,11 @@ import datetime
 import logging
 import subprocess
 from bs4 import BeautifulSoup
-from ai_utils import summarize_texts_batch, rephrase_as_anchor
+from ai_utils import summarize_texts_batch, rephrase_as_anchor, RateLimitException
 from news_service import get_personalized_news
 from utils import send_email
+from token_db_logger import initialize_database, log_token_usage
+from config import AI_MODEL_NAME
 
 # --- Logging Setup ---
 # Configure the logger to write to a file and the console
@@ -113,7 +115,20 @@ def generate_newscast_content(user_id):
         logging.warning("No article content found to summarize.")
         return None
 
-    summaries = summarize_texts_batch(texts_to_summarize)
+    try:
+        summaries, usage_data_summarize = summarize_texts_batch(texts_to_summarize)
+        if usage_data_summarize:
+            log_token_usage(
+                model_name=AI_MODEL_NAME,
+                prompt_tokens=usage_data_summarize.get('prompt_tokens', 0),
+                completion_tokens=usage_data_summarize.get('completion_tokens', 0),
+                total_tokens=usage_data_summarize.get('total_tokens', 0),
+                user_id=str(user_id),
+                feature_name="newscast-summarization"
+            )
+    except RateLimitException:
+        logger.error(f"AI rate limit hit during summarization for user {user_id}. Skipping.")
+        return None
 
     if not summaries:
         # This will be true if the batch call returns None (fatal error) or an empty list
@@ -121,8 +136,22 @@ def generate_newscast_content(user_id):
         return None
 
     logging.info("Generating anchor script...")
-    anchor_script = rephrase_as_anchor(" ".join(summaries))
-    return anchor_script # Will be None if rephrasing fails due to quota
+    try:
+        anchor_script, usage_data_rephrase = rephrase_as_anchor(" ".join(summaries))
+        if usage_data_rephrase:
+            log_token_usage(
+                model_name=AI_MODEL_NAME,
+                prompt_tokens=usage_data_rephrase.get('prompt_tokens', 0),
+                completion_tokens=usage_data_rephrase.get('completion_tokens', 0),
+                total_tokens=usage_data_rephrase.get('total_tokens', 0),
+                user_id=str(user_id),
+                feature_name="newscast-rephrasing"
+            )
+    except RateLimitException:
+        logger.error(f"AI rate limit hit during rephrasing for user {user_id}. Skipping.")
+        return None
+
+    return anchor_script
 
 def create_media_files(anchor_script, user_id, output_folder):
     """Creates audio and video files from the anchor script."""
@@ -184,6 +213,9 @@ def main():
     """Main function to generate and email the audiocast."""
     logging.info("="*50)
     logging.info("Starting daily newscast generation process...")
+
+    # Ensure the token tracking database is ready
+    initialize_database()
 
     all_users = get_all_users()
     if not all_users:

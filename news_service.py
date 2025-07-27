@@ -3,7 +3,7 @@ News Fetching Service (news_service.py)
 
 This module is responsible for fetching personalized news content for users.
 It interacts with the database to retrieve user preferences (preferred category,
-followed companies, and region) and then constructs the appropriate Google News RSS
+followed topics, and region) and then constructs the appropriate Google News RSS
 feed URLs to fetch the relevant articles. It also provides a fallback to
 default "Top Stories" if no user is specified or if no preferences are set.
 """

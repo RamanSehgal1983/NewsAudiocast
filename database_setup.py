@@ -2,7 +2,7 @@
 Database Setup Script (database_setup.py)
 
 This script is responsible for initializing the SQLite database (`newsapp.db`).
-It creates the necessary tables ('users', 'company_preferences') and adds the
+It creates the necessary tables ('users', 'topic_preferences') and adds the
 required columns if they do not already exist.
 
 The script is designed to be idempotent, meaning it can be run multiple times

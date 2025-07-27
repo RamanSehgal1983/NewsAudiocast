@@ -4,6 +4,10 @@ Utility Functions (utils.py)
 This module contains small, reusable helper functions that are used across
 different parts of the application. Keeping them here helps to avoid code
 duplication and maintain a clean project structure.
+
+Includes:
+- `build_full_url`: Constructs a Google News RSS URL with region/language parameters.
+- `send_email`: Sends emails with optional attachments using SMTP.
 """
 import smtplib
 import os

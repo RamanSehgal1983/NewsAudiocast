@@ -23,9 +23,14 @@ AI_MODEL_NAME = "gemini-1.5-flash-latest"
 # --- Secrets loaded from Environment ---
 # os.getenv() will return None if the variable is not found.
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
+# Load the AI model name from env, with a fallback to the current model
+AI_MODEL_NAME = os.getenv("AI_MODEL_NAME", "gemini-1.5-flash-latest")
+
+# --- Email Configuration ---
+# Loaded from environment for sending newscasts and password resets.
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
-FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
 
 # --- Validation ---
 # Ensure that the required variables have been loaded.

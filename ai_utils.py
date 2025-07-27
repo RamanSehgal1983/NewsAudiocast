@@ -52,10 +52,10 @@ def _log_rate_limit_error_if_needed():
     except sqlite3.Error as e:
         logger.error(f"Database error while trying to log API rate limit: {e}")
 
-def _call_google_api(prompt: str, temperature: float) -> str | None:
+def _call_google_api(prompt: str, temperature: float):
     """
     Helper function to call the Google Gemini API and handle responses.
-    Returns the generated text, or None on failure.
+    Returns the full response object, or None on failure.
     Raises RateLimitException if the API quota is exceeded.
     """
     try:
@@ -64,7 +64,7 @@ def _call_google_api(prompt: str, temperature: float) -> str | None:
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=temperature)
         )
-        return response.text
+        return response
     except ResourceExhausted as e:
         logger.error(f"Google Gemini API rate limit exceeded: {e}")
         _log_rate_limit_error_if_needed()
@@ -73,39 +73,51 @@ def _call_google_api(prompt: str, temperature: float) -> str | None:
         logger.error(f"An error occurred calling Google Gemini API: {e}")
         return None
 
-def summarize_text(text):
+def summarize_text(text: str) -> tuple[str, dict | None]:
     """
     Summarizes a given piece of text using Google Gemini.
-    Returns None if a fatal API error occurs.
+    Returns a tuple of (summary, usage_metadata) or (fallback_text, None) on failure.
     """
     prompt = f"You are an expert news summarizer. Summarize the following text concisely in no more than 100 words:\n\n{text}"
-    summary = _call_google_api(prompt, temperature=0.3)
-    if summary:
-        return summary
+    response = _call_google_api(prompt, temperature=0.3)
+    if response:
+        usage_metadata = {
+            'prompt_tokens': response.usage_metadata.prompt_token_count,
+            'completion_tokens': response.usage_metadata.candidates_token_count,
+            'total_tokens': response.usage_metadata.total_token_count,
+        }
+        return response.text, usage_metadata
     else:
         logger.warning("Falling back to simple text truncation for summarization.")
-        return (text[:150] + '...') if len(text) > 150 else text
+        fallback_summary = (text[:150] + '...') if len(text) > 150 else text
+        return fallback_summary, None
 
-def rephrase_as_anchor(text):
+def rephrase_as_anchor(text: str) -> tuple[str, dict | None]:
     """
     Uses Google Gemini to rewrite text into a news anchor script.
-    Returns None if a fatal API error occurs.
+    Returns a tuple of (script, usage_metadata) or (fallback_text, None) on failure.
     """
     prompt = f"You are a professional news anchor. Rewrite the following text into a cohesive, flowing news script that you would read on air. Make it engaging and professional:\n\n{text}"
-    script = _call_google_api(prompt, temperature=0.7)
-    if script:
-        return script
+    response = _call_google_api(prompt, temperature=0.7)
+    if response:
+        usage_metadata = {
+            'prompt_tokens': response.usage_metadata.prompt_token_count,
+            'completion_tokens': response.usage_metadata.candidates_token_count,
+            'total_tokens': response.usage_metadata.total_token_count,
+        }
+        return response.text, usage_metadata
     else:
         logger.warning("Falling back to a default message for anchor rephrasing.")
-        return "Could not generate the news anchor script at this time."
+        return "Could not generate the news anchor script at this time.", None
 
-def summarize_texts_batch(texts: list[str]) -> list[str] | None:
+def summarize_texts_batch(texts: list[str]) -> tuple[list[str], dict | None]:
     """
     Summarizes a batch of texts in a single API call to Google Gemini.
-    Returns a list of summaries, or None on a fatal API error.
+    Returns a tuple containing a list of summaries and usage metadata,
+    or a list of truncated texts and None on failure.
     """
     if not texts:
-        return []
+        return [], None
 
     # Construct a single prompt with instructions for batch processing
     prompt_parts = [
@@ -118,20 +130,28 @@ def summarize_texts_batch(texts: list[str]) -> list[str] | None:
         prompt_parts.append(f"ARTICLE {i}:\n{text}\n")
 
     full_prompt = "\n".join(prompt_parts)
-    response_text = _call_google_api(full_prompt, temperature=0.3)
+    response = _call_google_api(full_prompt, temperature=0.3)
 
-    if not response_text:
+    if not response:
         logger.error("Batch summarization failed. Falling back to truncating each article.")
-        return [(text[:150] + '...') if len(text) > 150 else text for text in texts]
+        fallback_summaries = [(text[:150] + '...') if len(text) > 150 else text for text in texts]
+        return fallback_summaries, None
 
     try:
+        usage_metadata = {
+            'prompt_tokens': response.usage_metadata.prompt_token_count,
+            'completion_tokens': response.usage_metadata.candidates_token_count,
+            'total_tokens': response.usage_metadata.total_token_count,
+        }
+
         # Split the response text into individual summaries using regex
-        summaries = re.split(r"SUMMARY\s*\d+:", response_text.strip(), flags=re.IGNORECASE)[1:]
+        summaries = re.split(r"SUMMARY\s*\d+:", response.text.strip(), flags=re.IGNORECASE)[1:]
         cleaned_summaries = [s.strip() for s in summaries]
 
         if len(cleaned_summaries) == len(texts):
-            return cleaned_summaries
+            return cleaned_summaries, usage_metadata
         raise ValueError(f"Expected {len(texts)} summaries, but parsed {len(cleaned_summaries)}.")
     except Exception as e:
         logger.error(f"An error occurred parsing the batch summary response: {e}. Falling back to truncation.")
-        return [(text[:150] + '...') if len(text) > 150 else text for text in texts]
+        fallback_summaries = [(text[:150] + '...') if len(text) > 150 else text for text in texts]
+        return fallback_summaries, None
