@@ -18,6 +18,7 @@ if run more than once.
 import sqlite3
 import logging
 import sys
+import time
 import os
 from dotenv import load_dotenv
 from sqlalchemy.orm import sessionmaker
@@ -36,9 +37,6 @@ API_USAGE_DB = 'api_usage.db'
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL or not DATABASE_URL.startswith("postgresql"):
     raise ValueError("DATABASE_URL is not configured for PostgreSQL in your .env file.")
-
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def migrate_users_and_preferences(dest_db):
     """Migrates users and their topic preferences from newsapp.db."""
@@ -148,19 +146,37 @@ def migrate_token_usage(dest_db):
 
 if __name__ == "__main__":
     logging.info("--- Starting Data Migration to PostgreSQL ---")
-    
-    # Create the session within the main execution block
-    dest_db = SessionLocal()
-    try:
-        migrate_users_and_preferences(dest_db)
-        migrate_api_errors(dest_db)
-        migrate_token_usage(dest_db)
-        dest_db.commit()
-        logging.info("Successfully committed all changes to the PostgreSQL database.")
-    except Exception as e:
-        logging.critical(f"A critical error occurred during migration: {e}")
-        dest_db.rollback()
-        sys.exit(1) # Exit with an error code on failure
-    finally:
-        dest_db.close()
+    max_retries = 5
+    retry_delay = 5  # seconds
+
+    for attempt in range(max_retries):
+        dest_db = None
+        try:
+            logging.info(f"Migration script: Connecting to database (attempt {attempt + 1}/{max_retries})...")
+            engine = create_engine(DATABASE_URL)
+            SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+            dest_db = SessionLocal()
+
+            # Test connection by running a simple query
+            dest_db.execute("SELECT 1")
+            logging.info("Migration script: Database connection successful.")
+
+            migrate_users_and_preferences(dest_db)
+            migrate_api_errors(dest_db)
+            migrate_token_usage(dest_db)
+            dest_db.commit()
+            logging.info("Successfully committed all changes to the PostgreSQL database.")
+            break  # Exit loop on success
+        except Exception as e:
+            logging.warning(f"Migration attempt {attempt + 1} failed: {e}")
+            if dest_db:
+                dest_db.rollback()
+            if attempt + 1 == max_retries:
+                logging.critical("All migration attempts failed. Exiting.")
+                sys.exit(1)
+            logging.info(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+        finally:
+            if dest_db:
+                dest_db.close()
     logging.info("--- Data Migration Complete ---")
