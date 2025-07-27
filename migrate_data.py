@@ -17,6 +17,7 @@ if run more than once.
 """
 import sqlite3
 import logging
+import sys
 import os
 from dotenv import load_dotenv
 from sqlalchemy.orm import sessionmaker
@@ -157,8 +158,9 @@ if __name__ == "__main__":
         dest_db.commit()
         logging.info("Successfully committed all changes to the PostgreSQL database.")
     except Exception as e:
-        logging.error(f"An error occurred during migration: {e}")
+        logging.critical(f"A critical error occurred during migration: {e}")
         dest_db.rollback()
+        sys.exit(1) # Exit with an error code on failure
     finally:
         dest_db.close()
     logging.info("--- Data Migration Complete ---")
