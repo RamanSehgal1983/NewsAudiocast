@@ -10,6 +10,7 @@ import sys
 import time
 import os
 from models import Base
+from sqlalchemy import text
 from database import engine
 from config import DATABASE_URL, FLASK_ENV
 
@@ -27,8 +28,9 @@ def setup_database():
         try:
             logger.info(f"Initializing database in {FLASK_ENV} mode (attempt {attempt + 1}/{max_retries})...")
             
-            # Test the connection before proceeding
+            # Test the connection by executing a simple query
             with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
                 logger.info("Database connection successful.")
             
             Base.metadata.create_all(bind=engine)

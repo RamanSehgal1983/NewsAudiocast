@@ -22,7 +22,7 @@ import time
 import os
 from dotenv import load_dotenv
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 from config import DATABASE_URL
 from models import Base, User, TopicPreference, ApiError, ApiTokenUsage
@@ -157,7 +157,7 @@ if __name__ == "__main__":
             dest_db = SessionLocal()
 
             # Test connection by running a simple query
-            dest_db.execute("SELECT 1")
+            dest_db.execute(text("SELECT 1"))
             logging.info("Migration script: Database connection successful.")
 
             migrate_users_and_preferences(dest_db)
