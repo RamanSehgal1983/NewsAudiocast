@@ -16,8 +16,7 @@ import hashlib
 from itsdangerous import URLSafeTimedSerializer
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-
-from token_db_logger import initialize_database, log_token_usage
+from token_db_logger import log_token_usage
 from werkzeug.security import generate_password_hash, check_password_hash
 from bs4 import BeautifulSoup
 from constants import NEWS_FEEDS, REGIONS
@@ -29,9 +28,6 @@ from models import User, TopicPreference, ApiError, SessionLocal, engine
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
-
-# Initialize the token tracking database
-initialize_database()
 
 @app.before_request
 def before_request():
@@ -80,7 +76,7 @@ def display_news():
             error_dt = last_error.timestamp
             last_error_time = error_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
         else:
-            app.logger.error(f"Could not fetch last API error time from DB: {e}")
+            app.logger.warning("Could not fetch last API error time from DB because no errors were found.")
         return render_template('rate_limit.html', last_error_time=last_error_time), 503
 
     # Log the token usage for the summarization call
@@ -104,20 +100,17 @@ def display_news():
     # Build the final list of summaries in the same order as the original combined_entries
     summaries = [summary_map.get(entry.link, "No summary available for this article.") for entry in combined_entries]
 
-    # 6. Store combined summaries in session for on-demand audio generation
-    if batch_summaries:
-        combined_summaries = " ".join(batch_summaries)
-        session['combined_summaries'] = combined_summaries
-    else:
-        session.pop('combined_summaries', None)
-
-    # 7. Render the main page with all the data
+    # 6. Render the main page with all the data
     return render_template('index.html', entries=combined_entries, summaries=summaries, user=user)
 
-@app.route('/generate_audio')
+@app.route('/generate_audio', methods=['POST'])
 def generate_audio():
     """Generates the news anchor script and audio file on-demand."""
-    combined_summaries = session.get('combined_summaries')
+    data = request.get_json()
+    if not data or 'summaries_text' not in data:
+        return jsonify({'error': 'Missing summaries_text in request body.'}), 400
+
+    combined_summaries = data['summaries_text']
     if not combined_summaries:
         return jsonify({'error': 'No summaries available to generate audio.'}), 404
 
@@ -229,8 +222,8 @@ def forgot_password():
 If you did not make this request then simply ignore this email and no changes will be made.
 This link will expire in 1 hour.
 """
-                send_email(email, subject, body)
-
+            send_email(email, subject, body)
+        
         # Flash message regardless of whether user exists to prevent enumeration
         flash('If that email address is in our database, a password reset link has been sent.', 'info')
         return redirect(url_for('login'))

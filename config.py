@@ -33,13 +33,19 @@ SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# --- Environment Configuration ---
+FLASK_ENV = os.getenv("FLASK_ENV", "production")
+
 # --- Validation ---
 # Ensure that the required variables have been loaded.
 if not GOOGLE_API_KEY:
     raise ValueError("A GOOGLE_API_KEY must be set in your environment variables or .env file.")
 if not DATABASE_URL:
-    # For local development, you can fall back to SQLite
-    DATABASE_URL = "sqlite:///newsapp.db"
+    if FLASK_ENV == "development":
+        print("WARNING: DATABASE_URL not set. Falling back to local SQLite database 'newsapp.db'.")
+        DATABASE_URL = "sqlite:///newsapp.db"
+    else:
+        raise ValueError("DATABASE_URL must be set in your environment variables or .env file for production.")
 if not SENDER_EMAIL or not SENDER_PASSWORD:
     raise ValueError("SENDER_EMAIL and SENDER_PASSWORD must be set in your environment variables or .env file.")
 if not FLASK_SECRET_KEY:

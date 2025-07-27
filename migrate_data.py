@@ -38,9 +38,8 @@ if not DATABASE_URL or not DATABASE_URL.startswith("postgresql"):
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-dest_db = SessionLocal()
 
-def migrate_users_and_preferences():
+def migrate_users_and_preferences(dest_db):
     """Migrates users and their topic preferences from newsapp.db."""
     logging.info("Starting user and preferences migration...")
     if not os.path.exists(NEWSAPP_DB):
@@ -83,7 +82,7 @@ def migrate_users_and_preferences():
     conn.close()
     logging.info("User and preferences migration finished.")
 
-def migrate_api_errors():
+def migrate_api_errors(dest_db):
     """Migrates API errors from newsapp.db."""
     logging.info("Starting API errors migration...")
     if not os.path.exists(NEWSAPP_DB):
@@ -96,8 +95,16 @@ def migrate_api_errors():
 
     cursor.execute("SELECT * FROM api_errors")
     for error_data in cursor.fetchall():
+        # Check if this exact error has been migrated to avoid duplicates.
+        # This is a simple check, might not be perfect for all cases.
+        if dest_db.query(ApiError).filter_by(
+            error_message=error_data['error_message'],
+            timestamp=error_data['timestamp']
+        ).first():
+            logging.info(f"Skipping duplicate API error from {error_data['timestamp']}.")
+            continue
+
         new_error = ApiError(
-            id=error_data['id'],
             error_message=error_data['error_message'],
             timestamp=error_data['timestamp']
         )
@@ -105,7 +112,7 @@ def migrate_api_errors():
     conn.close()
     logging.info("API errors migration finished.")
 
-def migrate_token_usage():
+def migrate_token_usage(dest_db):
     """Migrates token usage logs from api_usage.db."""
     logging.info("Starting token usage migration...")
     if not os.path.exists(API_USAGE_DB):
@@ -118,22 +125,39 @@ def migrate_token_usage():
 
     cursor.execute("SELECT * FROM api_token_usage")
     for token_data in cursor.fetchall():
-        new_log = ApiTokenUsage(**token_data)
+        # Check if this token usage log already exists to avoid duplicates.
+        if dest_db.query(ApiTokenUsage).filter_by(request_id=token_data['request_id']).first():
+            logging.info(f"Token usage for request_id {token_data['request_id']} already exists. Skipping.")
+            continue
+
+        # Explicitly map columns to be safer and to let the new DB handle the PK.
+        new_log = ApiTokenUsage(
+            request_id=token_data['request_id'],
+            request_timestamp=token_data['request_timestamp'],
+            model_name=token_data['model_name'],
+            user_id=token_data['user_id'],
+            feature_name=token_data['feature_name'],
+            prompt_tokens=token_data['prompt_tokens'],
+            completion_tokens=token_data['completion_tokens'],
+            total_tokens=token_data['total_tokens']
+        )
         dest_db.add(new_log)
     conn.close()
     logging.info("Token usage migration finished.")
 
 if __name__ == "__main__":
     logging.info("--- Starting Data Migration to PostgreSQL ---")
-    migrate_users_and_preferences()
-    migrate_api_errors()
-    migrate_token_usage()
-
+    
+    # Create the session within the main execution block
+    dest_db = SessionLocal()
     try:
+        migrate_users_and_preferences(dest_db)
+        migrate_api_errors(dest_db)
+        migrate_token_usage(dest_db)
         dest_db.commit()
         logging.info("Successfully committed all changes to the PostgreSQL database.")
     except Exception as e:
-        logging.error(f"An error occurred during commit: {e}")
+        logging.error(f"An error occurred during migration: {e}")
         dest_db.rollback()
     finally:
         dest_db.close()
