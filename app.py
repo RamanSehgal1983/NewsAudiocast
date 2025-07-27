@@ -117,6 +117,10 @@ def generate_audio():
 
     try:
         anchor_script, usage_data = rephrase_as_anchor(combined_summaries)
+        # Handle cases where the AI might return an empty or invalid script
+        if not anchor_script or not anchor_script.strip():
+            app.logger.error("AI service returned an empty anchor script.")
+            return jsonify({'error': 'Failed to generate a valid news script from the AI service.'}), 500
     except RateLimitException:
         return jsonify({'error': 'AI limit exceeded by the website server, please try again in 24 hours'}), 503
 
@@ -142,13 +146,24 @@ def generate_audio():
     audio_filepath = os.path.join('static', audio_filename)
 
     if not os.path.exists(audio_filepath):
-        tts = gTTS(text=anchor_script, lang='en')
-        tts.save(audio_filepath)
+        try:
+            app.logger.info(f"Generating new audio file: {audio_filepath}")
+            tts = gTTS(text=anchor_script, lang='en')
+            tts.save(audio_filepath)
+            app.logger.info("Audio file saved successfully.")
+        except Exception as e:
+            # This will catch errors from gTTS (e.g., network issues, empty text) or file system errors.
+            app.logger.error(f"Failed to generate or save audio file with gTTS: {e}")
+            return jsonify({'error': 'The server encountered an error while creating the audio file.'}), 500
 
     return jsonify({'audio_file': url_for('static', filename=audio_filename)})
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    if 'email' in session:
+        flash('You are already logged in.', 'info')
+        return redirect(url_for('display_news'))
+
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
@@ -171,13 +186,16 @@ def register():
         except Exception as e:
             # Log the detailed error for debugging and show a generic message to the user.
             app.logger.critical(f"Database error during registration for '{email}': {e}")
-            flash('A database error occurred during registration. Please try again later.', 'danger')
-            return render_template('register.html'), 500
+            flash('An error occurred during registration. Please try again later.', 'danger')
+            return render_template('register.html', user=None), 500
 
-    return render_template('register.html')
+    return render_template('register.html', user=None)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if 'email' in session:
+        return redirect(url_for('loading'))
+
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
@@ -193,7 +211,7 @@ def login():
             flash('Invalid email or password.', 'danger')
             app.logger.warning(f"Failed login attempt for email: '{email}'")
 
-    return render_template('login.html')
+    return render_template('login.html', user=None)
 
 @app.route('/logout')
 def logout():
