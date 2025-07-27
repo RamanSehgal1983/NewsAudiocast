@@ -1,3 +1,15 @@
+<!--
+  index.html
+  ----------
+  The main homepage of the application. Displays a list of news articles.
+  It handles both authenticated and anonymous users.
+
+  Context Variables from Flask:
+  - entries: A list of feedparser entry objects, each representing a news article.
+  - summaries: A list of AI-generated summaries, corresponding to the `entries` list.
+  - user: A dictionary-like object containing the logged-in user's data
+          (id, email, etc.), or None if the user is not logged in.
+-->
 {% extends "base.html" %}
 
 {% block content %}
