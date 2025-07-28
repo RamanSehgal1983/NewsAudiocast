@@ -231,7 +231,7 @@ def login():
         if user and check_password_hash(user.password, password):
             session['email'] = user.email
             app.logger.info(f"User '{email}' logged in successfully.")
-            return redirect(url_for('loading'))
+            return redirect(url_for('display_news'))
         else:
             # Log a failed login attempt for security awareness
             flash('Invalid email or password.', 'danger')
@@ -354,15 +354,6 @@ def preferences():
                            regions=REGIONS,
                            user=user,
                            followed_topics=followed_topics)
-
-@app.route('/loading')
-def loading():
-    """Renders a loading page while the initial news is fetched."""
-    user = None
-    if 'email' in session:
-        user = g.db.query(User).filter_by(email=session['email']).first()
-
-    return render_template('loading.html', user=user)
 
 if __name__ == '__main__':
     with app.app_context():
