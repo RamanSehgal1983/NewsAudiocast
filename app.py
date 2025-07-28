@@ -52,8 +52,6 @@ def display_news():
         if user:
             user_id = user.id
 
-    combined_summaries_text = None
-
     # 2. Centralized call to the news service
     # It handles both logged-in (with user_id) and anonymous (user_id=None) users
     combined_entries = get_personalized_news(user_id)
@@ -106,20 +104,20 @@ def display_news():
     summaries = [summary_map.get(entry.link, "No summary available for this article.") for entry in combined_entries]
 
     if summaries:
-        combined_summaries_text = " ".join(summaries)
+        # Store the combined text in the session for the audio generation route to use
+        session['combined_summaries'] = " ".join(summaries)
+    else:
+        # Clear it if there are no summaries
+        session.pop('combined_summaries', None)
 
     # 6. Render the main page with all the data
     return render_template('index.html', entries=combined_entries, summaries=summaries, user=user)
 
 
-@app.route('/generate_audio', methods=['POST'])
+@app.route('/generate_audio') # Changed to GET, no longer needs POST
 def generate_audio():
     """Generates the news anchor script and audio file on-demand."""
-    data = request.get_json()
-    if not data or 'summaries_text' not in data:
-        return jsonify({'error': 'Missing summaries_text in request body.'}), 400
-
-    combined_summaries = data.get('summaries_text')
+    combined_summaries = session.get('combined_summaries')
     if not combined_summaries:
         return jsonify({'error': 'No summaries available to generate audio.'}), 404
 
