@@ -9,7 +9,7 @@ web-based interactions, including:
 - Interacting with AI utilities (ai_utils) to summarize and rephrase news.
 - Rendering HTML templates to display content to the user.
 """
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, g
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, g, send_from_directory
 from gtts import gTTS
 import os
 import hashlib
@@ -23,12 +23,14 @@ from constants import NEWS_FEEDS, REGIONS
 from ai_utils import summarize_texts_batch, rephrase_as_anchor, RateLimitException
 from news_service import get_personalized_news
 from utils import send_email
-from config import FLASK_SECRET_KEY, AI_MODEL_NAME, DATABASE_URL
+from config import FLASK_SECRET_KEY, AI_MODEL_NAME, DATABASE_URL, PERSISTENT_STORAGE_PATH
 from models import User, TopicPreference, ApiError
 from database import SessionLocal
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
+# Load the persistent storage path into the app's config
+app.config['PERSISTENT_STORAGE_PATH'] = PERSISTENT_STORAGE_PATH
 
 @app.before_request
 def before_request():
@@ -49,6 +51,8 @@ def display_news():
         user = g.db.query(User).filter_by(email=user_email).first()
         if user:
             user_id = user.id
+
+    combined_summaries_text = None
 
     # 2. Centralized call to the news service
     # It handles both logged-in (with user_id) and anonymous (user_id=None) users
@@ -101,8 +105,12 @@ def display_news():
     # Build the final list of summaries in the same order as the original combined_entries
     summaries = [summary_map.get(entry.link, "No summary available for this article.") for entry in combined_entries]
 
+    if summaries:
+        combined_summaries_text = " ".join(summaries)
+
     # 6. Render the main page with all the data
     return render_template('index.html', entries=combined_entries, summaries=summaries, user=user)
+
 
 @app.route('/generate_audio', methods=['POST'])
 def generate_audio():
@@ -111,7 +119,7 @@ def generate_audio():
     if not data or 'summaries_text' not in data:
         return jsonify({'error': 'Missing summaries_text in request body.'}), 400
 
-    combined_summaries = data['summaries_text']
+    combined_summaries = data.get('summaries_text')
     if not combined_summaries:
         return jsonify({'error': 'No summaries available to generate audio.'}), 404
 
@@ -143,7 +151,11 @@ def generate_audio():
 
     filename_hash = hashlib.md5(anchor_script.encode()).hexdigest()
     audio_filename = f"{filename_hash}.mp3"
-    audio_filepath = os.path.join('static', audio_filename)
+
+    # Save the audio file to the persistent storage location
+    storage_path = app.config['PERSISTENT_STORAGE_PATH']
+    os.makedirs(storage_path, exist_ok=True)
+    audio_filepath = os.path.join(storage_path, audio_filename)
 
     if not os.path.exists(audio_filepath):
         try:
@@ -156,7 +168,16 @@ def generate_audio():
             app.logger.error(f"Failed to generate or save audio file with gTTS: {e}")
             return jsonify({'error': 'The server encountered an error while creating the audio file.'}), 500
 
-    return jsonify({'audio_file': url_for('static', filename=audio_filename)})
+    # Return a URL to our new route that serves files from the persistent disk
+    return jsonify({'audio_file': url_for('serve_media', filename=audio_filename)})
+
+@app.route('/media/<path:filename>')
+def serve_media(filename):
+    """Serves files from the persistent storage directory."""
+    storage_path = app.config.get('PERSISTENT_STORAGE_PATH')
+    if not storage_path or not os.path.isdir(storage_path):
+        return "Media storage not configured or not found on the server.", 500
+    return send_from_directory(storage_path, filename)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -337,3 +358,7 @@ def loading():
         user = g.db.query(User).filter_by(email=session['email']).first()
 
     return render_template('loading.html', user=user)
+
+if __name__ == '__main__':
+    with app.app_context():
+        app.run(debug=True)
