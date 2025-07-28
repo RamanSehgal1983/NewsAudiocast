@@ -1,8 +1,25 @@
-/* Custom styles for NewsReader app */
+/*
+ * Main Stylesheet (style.css)
+ * ---------------------------
+ * This file contains the primary styles for the NewsReader application.
+ * It includes styles for layout, typography, forms, and components.
+ *
+ * Sections:
+ * 1. Base Styles
+ * 2. News Item Card Styles
+ * 3. Typography
+*/
+
+/* ==========================================================================
+   1. Base Styles
+   ========================================================================== */
 
 body {
     background-color: #f8f9fa; /* A light grey background for the page */
 }
+/* ==========================================================================
+   2. News Item Card Styles
+   ========================================================================== */
 
 .news-item {
     display: flex;
@@ -28,6 +45,10 @@ body {
     transform: translateY(-5px);
     box-shadow: 0 6px 16px rgba(0,0,0,0.15);
 }
+
+/* ==========================================================================
+   3. Typography
+   ========================================================================== */
 
 .news-item .card-title a {
     text-decoration: none;
