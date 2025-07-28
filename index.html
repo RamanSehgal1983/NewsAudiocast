@@ -15,7 +15,11 @@
 {% block content %}
 <div class="container my-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Today's Top Stories</h1>
+        {% if user %}
+            <h1>Your Personalized News</h1>
+        {% else %}
+            <h1>Today's Top Stories</h1>
+        {% endif %}
         {% if summaries %}
             <button id="play-newscast" class="btn btn-primary d-inline-flex align-items-center">
                 <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" style="display: none;"></span>
@@ -23,6 +27,15 @@
             </button>
         {% endif %}
     </div>
+    {% if user %}
+    <div class="search-bar mb-4">
+        <form action="{{ url_for('display_news') }}" method="get" class="d-flex">
+            <input type="text" name="q" class="form-control me-2" placeholder="Search for news..." value="{{ search_query or '' }}">
+            <button type="submit" class="btn btn-outline-secondary">Search</button>
+        </form>
+    </div>
+    {% endif %}
+
     <audio id="newscast-audio" controls class="w-100 mb-4" style="display: none;"></audio>
 
     <div class="row row-cols-1 row-cols-md-3 g-4">

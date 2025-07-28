@@ -21,12 +21,29 @@ from extensions import cache
 logger = logging.getLogger(__name__)
 
 @cache.memoize(timeout=900)  # Cache results for 15 minutes
-def get_personalized_news(user_id=None):
+def get_personalized_news(user_id=None, search_query=None):
     """
     Fetches personalized news for a given user_id using SQLAlchemy.
-    - Fetches a total of 10 articles based on user's preferred category and/or followed topics.
-    - If no user_id is provided or no articles are found, fetches 10 default Top Stories.
+    - If a search_query is provided, it fetches news based on that query.
+    - Otherwise, it fetches articles based on the user's preferred category and/or followed topics.
+    - If no user/preferences/query, it fetches default Top Stories.
     """
+    # If a search query is provided, it takes precedence over user preferences
+    if search_query:
+        logger.info(f"Performing news search for query: '{search_query}'")
+        user_region = None
+        if user_id:
+            db = SessionLocal()
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                user_region = user.preferred_region
+            db.close()
+
+        search_url = f"https://news.google.com/rss/search?q={quote(search_query)}"
+        full_url = build_full_url(search_url, user_region)
+        feed = feedparser.parse(full_url)
+        return feed.entries[:10]
+
     combined_entries = []
     user_region = None
     preferred_category = None

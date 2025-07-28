@@ -56,9 +56,12 @@ def display_news():
         if user:
             user_id = user.id
 
+    # 1. Check for a search query from the user
+    search_query = request.args.get('q', None)
+
     # 2. Centralized call to the news service
     # It handles both logged-in (with user_id) and anonymous (user_id=None) users
-    combined_entries = get_personalized_news(user_id)
+    combined_entries = get_personalized_news(user_id=user_id, search_query=search_query)
 
     # 3. Collect article content for summarization
     # We only process entries that have a 'summary' attribute from the RSS feed.
@@ -115,7 +118,7 @@ def display_news():
         session.pop('combined_summaries', None)
 
     # 6. Render the main page with all the data
-    return render_template('index.html', entries=combined_entries, summaries=summaries, user=user)
+    return render_template('index.html', entries=combined_entries, summaries=summaries, user=user, search_query=search_query)
 
 
 @app.route('/generate_audio') # Changed to GET, no longer needs POST
