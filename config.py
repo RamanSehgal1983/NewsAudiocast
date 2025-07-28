@@ -42,6 +42,12 @@ DATABASE_URL = os.getenv("INTERNAL_DATABASE_URL") or os.getenv("DATABASE_URL")
 if os.getenv("INTERNAL_DATABASE_URL"):
     print("INFO: INTERNAL_DATABASE_URL found. Using it for the database connection.")
 
+# --- Persistent Storage Configuration ---
+# On Render, create a Persistent Disk and set its mount path as the RENDER_DISK_PATH env variable.
+# For example: RENDER_DISK_PATH=/var/data/media
+# Locally, it will default to a 'persistent_data' folder in your project root for testing.
+PERSISTENT_STORAGE_PATH = os.getenv("RENDER_DISK_PATH", "persistent_data")
+
 # --- Validation ---
 # Ensure that the required variables have been loaded.
 if not GOOGLE_API_KEY:
