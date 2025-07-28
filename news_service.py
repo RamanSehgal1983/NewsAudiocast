@@ -16,9 +16,11 @@ from constants import NEWS_FEEDS
 from utils import build_full_url
 from models import User
 from database import SessionLocal
+from extensions import cache
 
 logger = logging.getLogger(__name__)
 
+@cache.memoize(timeout=900)  # Cache results for 15 minutes
 def get_personalized_news(user_id=None):
     """
     Fetches personalized news for a given user_id using SQLAlchemy.

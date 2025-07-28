@@ -22,7 +22,7 @@ from ai_utils import summarize_texts_batch, rephrase_as_anchor, RateLimitExcepti
 from news_service import get_personalized_news
 from utils import send_email
 from token_db_logger import log_token_usage
-from config import AI_MODEL_NAME
+from config import AI_MODEL_NAME, PERSISTENT_STORAGE_PATH
 from models import SessionLocal, User
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -189,9 +189,8 @@ def process_user(user_id, user_email):
         logging.warning(f"Could not generate newscast content for {user_email}. Skipping.")
         return
 
-    # 2. Create the output directory relative to the script's location
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_folder = os.path.join(script_dir, 'Daily Newscast')
+    # 2. Use the persistent storage path for output files
+    output_folder = PERSISTENT_STORAGE_PATH
     os.makedirs(output_folder, exist_ok=True)
 
     # 3. Create the audio and video files

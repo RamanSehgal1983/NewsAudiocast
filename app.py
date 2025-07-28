@@ -26,11 +26,15 @@ from utils import send_email
 from config import FLASK_SECRET_KEY, AI_MODEL_NAME, DATABASE_URL, PERSISTENT_STORAGE_PATH
 from models import User, TopicPreference, ApiError
 from database import SessionLocal
+from extensions import cache
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 # Load the persistent storage path into the app's config
 app.config['PERSISTENT_STORAGE_PATH'] = PERSISTENT_STORAGE_PATH
+
+# Initialize extensions
+cache.init_app(app)
 
 @app.before_request
 def before_request():

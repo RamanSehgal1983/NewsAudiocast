@@ -19,6 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from config import GOOGLE_API_KEY, AI_MODEL_NAME
 from models import ApiError
 from database import SessionLocal
+from extensions import cache
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,7 @@ def _call_google_api(prompt: str, temperature: float):
         logger.error(f"An error occurred calling Google Gemini API: {e}")
         return None
 
+@cache.memoize(timeout=86400) # Cache for 24 hours
 def summarize_text(text: str) -> tuple[str, dict | None]:
     """
     Summarizes a given piece of text using Google Gemini.
@@ -96,6 +98,7 @@ def summarize_text(text: str) -> tuple[str, dict | None]:
         fallback_summary = (text[:150] + '...') if len(text) > 150 else text
         return fallback_summary, None
 
+@cache.memoize(timeout=86400) # Cache for 24 hours
 def rephrase_as_anchor(text: str) -> tuple[str, dict | None]:
     """
     Uses Google Gemini to rewrite text into a news anchor script.
@@ -114,6 +117,7 @@ def rephrase_as_anchor(text: str) -> tuple[str, dict | None]:
         logger.warning("Falling back to a default message for anchor rephrasing.")
         return "Could not generate the news anchor script at this time.", None
 
+@cache.memoize(timeout=86400) # Cache for 24 hours
 def summarize_texts_batch(texts: list[str]) -> tuple[list[str], dict | None]:
     """
     Summarizes a batch of texts in a single API call to Google Gemini.
