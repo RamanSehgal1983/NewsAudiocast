@@ -1,2 +1,12 @@
-
+beautifulsoup4
+Flask
+feedparser
+google-api-core
+google-generativeai
 gunicorn
+gTTS
+itsdangerous
+python-dotenv
+requests
+SQLAlchemy
+Werkzeug
