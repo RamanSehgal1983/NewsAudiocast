@@ -1,15 +1,16 @@
 import logging
 from typing import Optional
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from models import ApiTokenUsage
-from database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
 # The initialize_database() function is no longer needed.
 # The table will be created by the `database_setup.py` script.
 def log_token_usage(
+    db: Session,
     model_name: str,
     prompt_tokens: int,
     completion_tokens: int,
@@ -21,6 +22,7 @@ def log_token_usage(
     Logs a single API call's token usage to the database using SQLAlchemy.
 
     Args:
+        db: The SQLAlchemy session object.
         model_name: The name of the model used (e.g., 'gemini-1.5-pro').
         prompt_tokens: Number of tokens in the prompt.
         completion_tokens: Number of tokens in the response.
@@ -28,7 +30,6 @@ def log_token_usage(
         user_id: The ID of the user making the request.
         feature_name: The application feature that made the API call.
     """
-    db = SessionLocal()
     try:
         new_log = ApiTokenUsage(
             model_name=model_name,
@@ -43,5 +44,6 @@ def log_token_usage(
     except SQLAlchemyError as e:
         logger.error(f"Database logging error for token usage: {e}")
         db.rollback()
-    finally:
-        db.close()
+    except Exception as e:
+        logger.error(f"An unexpected error occurred in log_token_usage: {e}")
+        db.rollback()

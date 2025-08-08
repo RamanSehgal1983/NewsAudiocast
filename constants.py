@@ -13,8 +13,10 @@ Includes:
 NEWS_FEEDS = {
     'Top Stories': 'https://news.google.com/rss',
     'World': 'https://news.google.com/rss/headlines/section/topic/WORLD',
+    'Politics': 'https://news.google.com/rss/headlines/section/topic/POLITICS',
     'Business': 'https://news.google.com/rss/headlines/section/topic/BUSINESS',
     'Technology': 'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY',
+    'Entertainment': 'https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT',
     'Sports': 'https://news.google.com/rss/headlines/section/topic/SPORTS',
     'Fashion': 'https://news.google.com/rss/search?q=fashion',
     'AI': 'https://news.google.com/rss/search?q=AI',
