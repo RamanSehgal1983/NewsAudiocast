@@ -17,6 +17,8 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         {% if user %}
             <h1>Your Personalized News</h1>
+        {% elif region_name and region_name != 'Worldwide' %}
+            <h1>Top Stories in {{ region_name }}</h1>
         {% else %}
             <h1>Today's Top Stories</h1>
         {% endif %}
@@ -26,6 +28,17 @@
                 <span class="button-text">Listen to these news</span>
             </button>
         {% endif %}
+    </div>
+    <div class="nav-scroller py-1 mb-2">
+        <nav class="nav d-flex justify-content-center">
+            <a class="p-2 link-secondary fw-bold {% if category == 'Latest' %}text-primary{% endif %}" href="{{ url_for('display_news', category='Latest') }}">Latest</a>
+            <a class="p-2 link-secondary fw-bold {% if category == 'Politics' %}text-primary{% endif %}" href="{{ url_for('display_news', category='Politics') }}">Politics</a>
+            <a class="p-2 link-secondary fw-bold {% if category == 'Business' %}text-primary{% endif %}" href="{{ url_for('display_news', category='Business') }}">Business</a>
+            <a class="p-2 link-secondary fw-bold {% if category == 'Technology' %}text-primary{% endif %}" href="{{ url_for('display_news', category='Technology') }}">Technology</a>
+            <a class="p-2 link-secondary fw-bold {% if category == 'Sports' %}text-primary{% endif %}" href="{{ url_for('display_news', category='Sports') }}">Sports</a>
+            <a class="p-2 link-secondary fw-bold {% if category == 'Entertainment' %}text-primary{% endif %}" href="{{ url_for('display_news', category='Entertainment') }}">Entertainment</a>
+            <a class="p-2 link-secondary fw-bold {% if category == 'Weather' %}text-primary{% endif %}" href="{{ url_for('display_news', category='Weather') }}">Weather</a>
+        </nav>
     </div>
     {% if user %}
     <div class="search-bar mb-4">
@@ -39,19 +52,26 @@
     <audio id="newscast-audio" controls class="w-100 mb-4" style="display: none;"></audio>
 
     <div class="row row-cols-1 row-cols-md-3 g-4">
-        {% for entry in entries %}
+        {% for entry, logo_url in entries_with_logos %}
         <div class="col d-flex align-items-stretch">
             <div class="card h-100 news-item">
                 <div class="card-body d-flex flex-column">
-                    <h5 class="card-title"><a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer">{{ entry.title }}</a></h5>
-                    <p class="card-text">{{ summaries[loop.index0] }}</p>
+                    <h5 class="card-title mb-0"><a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer">{{ entry.title }}</a></h5>
+                    {% if entry.source.title %}
+                        <div class="d-flex align-items-center mt-2">
+                            {% if logo_url %}
+                                <img src="{{ logo_url }}" alt="News Source Logo" class="me-2" style="width: 16px; height: 16px; object-fit: contain;">
+                            {% endif %}
+                            <p class="card-text text-muted mb-0"><em>{{ entry.source.title }}</em></p>
+                        </div>
+                    {% endif %}
+                    <p class="card-text mt-2">{{ summaries[loop.index0] }}</p>
                 </div>
                 <div class="card-footer mt-auto text-end pt-3 border-top">
                     <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">Read More</a>
                 </div>
             </div>
         </div>
-
         {% endfor %}
     </div>
 </div>
@@ -61,7 +81,7 @@ document.getElementById('play-newscast')?.addEventListener('click', function() {
     var audioPlayer = document.getElementById('newscast-audio');
     var button = this;
     var spinner = button.querySelector('.spinner-border');
-    var buttonText = button.querySelector('.button-text');
+    var buttonText = button.querySelector('button-text');
 
     spinner.style.display = 'inline-block';
     buttonText.textContent = 'Generating...';

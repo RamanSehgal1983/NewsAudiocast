@@ -38,16 +38,16 @@ class ApiError(Base):
     __tablename__ = 'api_errors'
     id = Column(Integer, primary_key=True)
     error_message = Column(String, nullable=False)
-    timestamp = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    timestamp = Column(TIMESTAMP, nullable=False, server_default=func.now(), index=True)
 
 class ApiTokenUsage(Base):
     __tablename__ = 'api_token_usage'
     id = Column(Integer, primary_key=True)
     # The original code generates a UUID string, so String is appropriate.
     request_id = Column(String, unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
-    request_timestamp = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    request_timestamp = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), index=True)
     model_name = Column(String, nullable=False)
-    user_id = Column(String, nullable=True)
+    user_id = Column(String, nullable=True, index=True)
     feature_name = Column(String, nullable=True)
     prompt_tokens = Column(Integer, nullable=False)
     completion_tokens = Column(Integer, nullable=False)
