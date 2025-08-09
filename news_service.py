@@ -48,12 +48,20 @@ def _get_logo_url_from_entry(entry):
 
 def _parse_feed_and_get_entries(feed_url, limit):
     """Parses a feed and returns entries with their logo URLs."""
-    feed = feedparser.parse(feed_url)
-    entries_with_logos = []
-    for entry in feed.entries[:limit]:
-        logo_url = _get_logo_url_from_entry(entry)
-        entries_with_logos.append((entry, logo_url))
-    return entries_with_logos
+    logger.info(f"Attempting to parse feed from URL: {feed_url}")
+    try:
+        feed = feedparser.parse(feed_url)
+        if feed.bozo:
+            logger.warning(f"Feed parsing error for {feed_url}: {feed.bozo_exception}")
+        logger.info(f"Found {len(feed.entries)} entries for URL: {feed_url}")
+        entries_with_logos = []
+        for entry in feed.entries[:limit]:
+            logo_url = _get_logo_url_from_entry(entry)
+            entries_with_logos.append((entry, logo_url))
+        return entries_with_logos
+    except Exception as e:
+        logger.error(f"Error parsing feed from {feed_url}: {e}")
+        return []
 
 
 @cache.memoize(timeout=900)
@@ -80,12 +88,14 @@ def get_personalized_news(db, user_id=None, search_query=None, country_code=None
             logger.info(f"Performing news search for query: '{search_query}'")
             search_url = f"https://news.google.com/rss/search?q={quote(search_query)}"
             full_url = build_full_url(search_url, final_region_code)
+            logger.info(f"Search URL: {full_url}")
             return _parse_feed_and_get_entries(full_url, 10)
 
         if category and category in NEWS_FEEDS:
             logger.info(f"Fetching news for category: '{category}'")
             category_url = NEWS_FEEDS[category]
             full_url = build_full_url(category_url, final_region_code)
+            logger.info(f"Category URL: {full_url}")
             return _parse_feed_and_get_entries(full_url, 10)
 
         combined_entries_with_logos = []
@@ -128,8 +138,10 @@ def get_personalized_news(db, user_id=None, search_query=None, country_code=None
             logger.info("No preferences found or no articles fetched, getting default Top Stories.")
             default_url = NEWS_FEEDS['Top Stories']
             full_url = build_full_url(default_url, final_region_code)
+            logger.info(f"Default Top Stories URL: {full_url}")
             combined_entries_with_logos.extend(_parse_feed_and_get_entries(full_url, 10))
 
+        logger.info(f"Total combined entries fetched: {len(combined_entries_with_logos)}")
         return combined_entries_with_logos
     except Exception as e:
         logger.error(f"An unexpected error occurred in get_personalized_news: {e}")

@@ -65,3 +65,11 @@ body {
     color: #444;
     line-height: 1.6;
 }
+
+.newspaper-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.8rem; /* Adjust as needed */
+    font-weight: 700;
+    color: #fff; /* Or a color that fits your design */
+    /* Add any other styling you want, e.g., text-shadow, letter-spacing */
+}

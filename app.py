@@ -56,18 +56,18 @@ def display_news():
         if user:
             user_id = user.id
 
-    # 1. Check for a search query from the user
+     # 1. Check for a search query and category from the user
     search_query = request.args.get('q', None)
+    category = request.args.get('category', 'Latest') # Default to 'Latest'
 
     # 2. Centralized call to the news service
-    # It handles both logged-in (with user_id) and anonymous (user_id=None) users
-    combined_entries = get_personalized_news(db=g.db, user_id=user_id, search_query=search_query)
+    entries_with_logos = get_personalized_news(db=g.db, user_id=user_id, search_query=search_query, category=category)
 
     # 3. Collect article content for summarization
     # We only process entries that have a 'summary' attribute from the RSS feed.
     texts_to_summarize = []
     entries_with_summary = []
-    for entry in combined_entries:
+    for entry, logo_url in entries_with_logos:
         if hasattr(entry, 'summary'):
             soup = BeautifulSoup(entry.summary, "html.parser")
             plain_text = soup.get_text()
@@ -92,6 +92,7 @@ def display_news():
     # Log the token usage for the summarization call
     if usage_data:
         log_token_usage(
+            db=g.db,
             model_name=AI_MODEL_NAME,
             prompt_tokens=usage_data.get('prompt_tokens', 0),
             completion_tokens=usage_data.get('completion_tokens', 0),
@@ -108,7 +109,7 @@ def display_news():
             summary_map[entry.link] = batch_summaries[i]
 
     # Build the final list of summaries in the same order as the original combined_entries
-    summaries = [summary_map.get(entry.link, "No summary available for this article.") for entry in combined_entries]
+    summaries = [summary_map.get(entry.link, "No summary available for this article.") for entry, logo_url in entries_with_logos]
 
     if summaries:
         # Store the combined text in the session for the audio generation route to use
@@ -118,7 +119,8 @@ def display_news():
         session.pop('combined_summaries', None)
 
     # 6. Render the main page with all the data
-    return render_template('index.html', entries=combined_entries, summaries=summaries, user=user, search_query=search_query)
+    # 6. Render the main page with all the data
+    return render_template('index.html', entries_with_logos=entries_with_logos, summaries=summaries, user=user, search_query=search_query, category=category)
 
 
 @app.route('/generate_audio') # Changed to GET, no longer needs POST
@@ -146,6 +148,7 @@ def generate_audio():
             if user:
                 user_id = user.id
         log_token_usage(
+            db=g.db,
             model_name=AI_MODEL_NAME,
             prompt_tokens=usage_data.get('prompt_tokens', 0),
             completion_tokens=usage_data.get('completion_tokens', 0),
@@ -357,4 +360,5 @@ def preferences():
 
 if __name__ == '__main__':
     with app.app_context():
+        cache.clear()  # Clear the cache
         app.run(debug=True)
