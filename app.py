@@ -61,7 +61,7 @@ def display_news():
 
     # 2. Centralized call to the news service
     # It handles both logged-in (with user_id) and anonymous (user_id=None) users
-    combined_entries = get_personalized_news(user_id=user_id, search_query=search_query)
+    combined_entries = get_personalized_news(db=g.db, user_id=user_id, search_query=search_query)
 
     # 3. Collect article content for summarization
     # We only process entries that have a 'summary' attribute from the RSS feed.
