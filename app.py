@@ -89,6 +89,13 @@ def display_news():
     # 2. Centralized call to the news service, now with country_code for anonymous users
     entries_with_logos = get_personalized_news(db=g.db, user_id=user_id, search_query=search_query, category=category, country_code=country_code)
 
+    # Clean up titles by removing the source name
+    for entry, logo_url in entries_with_logos:
+        if hasattr(entry, 'source') and entry.source.title:
+            parts = entry.title.rsplit(' - ', 1)
+            if len(parts) == 2 and parts[1] == entry.source.title:
+                entry.title = parts[0]
+
     # 3. Collect article content for summarization
     # We only process entries that have a 'summary' attribute from the RSS feed.
     texts_to_summarize = []

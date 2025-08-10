@@ -55,29 +55,41 @@
         {% for entry, logo_url in entries_with_logos %}
         <div class="col d-flex align-items-stretch">
             <div class="card h-100 news-item">
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title mb-0"><a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer">{{ entry.title }}</a></h5>
-                    {% if entry.source.title %}
-                        <div class="d-flex align-items-center mt-2">
-                            {% if logo_url %}
-                                <img src="{{ logo_url }}" alt="News Source Logo" class="me-2" style="width: 16px; height: 16px; object-fit: contain;">
-                            {% endif %}
-                            <p class="card-text text-muted mb-0"><em>{{ entry.source.title }}</em></p>
-                        </div>
-                    {% endif %}
-                    <p class="card-text mt-2">{{ summaries[loop.index0] }}</p>
-                </div>
-                <div class="card-footer mt-auto text-end pt-3 border-top">
-                    <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">Read More</a>
-                </div>
+                <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="card-link">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title mb-0">{{ entry.title }}</h5>
+                        {% if entry.source.title %}
+                            <div class="d-flex align-items-center mt-2">
+                                {% if logo_url %}
+                                    <img src="{{ logo_url }}" alt="News Source Logo" class="me-2" style="width: 16px; height: 16px; object-fit: contain;">
+                                {% endif %}
+                                <p class="card-text text-muted mb-0"><em>{{ entry.source.title }}</em></p>
+                            </div>
+                        {% endif %}
+                        <p class="card-text mt-2">{{ summaries[loop.index0] }}</p>
+                    </div>
+                </a>
             </div>
         </div>
         {% endfor %}
     </div>
 </div>
 
+<style>
+    .card-link {
+        text-decoration: none;
+        color: inherit;
+    }
+    .card-link:hover .card {
+        /* Optional: add a hover effect to the whole card */
+        transform: translateY(-5px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    }
+</style>
+
 <script>
 document.getElementById('play-newscast')?.addEventListener('click', function() {
+    console.log("Button clicked. Starting audio generation process...");
     var audioPlayer = document.getElementById('newscast-audio');
     var button = this;
     var spinner = button.querySelector('.spinner-border');
@@ -87,19 +99,24 @@ document.getElementById('play-newscast')?.addEventListener('click', function() {
     buttonText.textContent = 'Generating...';
     button.disabled = true;
 
+    console.log("Fetching audio from server...");
     fetch("{{ url_for('generate_audio') }}")
-        .then(response => response.json())
+        .then(response => {
+            console.log("Received response from server.");
+            return response.json();
+        })
         .then(data => {
+            console.log("Parsed JSON data:", data);
             if (data.audio_file) {
                 audioPlayer.src = data.audio_file;
                 audioPlayer.playbackRate = 1.25;
                 audioPlayer.style.display = 'block';
                 audioPlayer.play();
-                // Update button state to show completion
                 spinner.style.display = 'none';
-                buttonText.textContent = 'Generated';
+                buttonText.textContent = 'Listen to these news'; // Reset button text
                 button.disabled = false;
             } else {
+                console.error("Audio generation failed:", data.error);
                 alert(data.error || 'An unknown error occurred.');
                 spinner.style.display = 'none';
                 buttonText.textContent = 'Listen to these news';
