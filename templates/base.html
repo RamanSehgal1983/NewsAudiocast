@@ -23,7 +23,24 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
+                <ul class="navbar-nav ms-auto align-items-center">
+                    {% if not user %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="{{ url_for('display_news', region='IN') }}" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                          {{ region_name or 'Select Region' }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                            {% for continent, countries in regions.items() %}
+                                <li><h6 class="dropdown-header">{{ continent }}</h6></li>
+                                {% for country_name, country_code in countries %}
+                                    <li><a class="dropdown-item" href="{{ url_for('display_news', region=country_code) }}">{{ country_name }}</a></li>
+                                {% endfor %}
+                                {% if not loop.last %}<li><hr class="dropdown-divider"></li>{% endif %}
+                            {% endfor %}
+                        </ul>
+                    </li>
+                    {% endif %}
+
                     {% if user %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('preferences') }}">Preferences</a></li>
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout ({{ user.email }})</a></li>

@@ -60,29 +60,39 @@ def display_news():
         if user:
             user_id = user.id
     else:
-        # For anonymous users, detect region from IP
-        try:
-            # Standard way to get the real IP address, even when behind a proxy.
-            if request.headers.getlist("X-Forwarded-For"):
-                ip_address = request.headers.getlist("X-Forwarded-For")[0]
-            else:
-                ip_address = request.remote_addr
-            
-            # If testing locally, use a sample Indian IP for demonstration
-            if ip_address == '127.0.0.1':
-                ip_address = '202.83.21.1' # Sample IP from India
+        # For anonymous users, prioritize manual region selection from URL
+        manual_region = request.args.get('region')
+        if manual_region:
+            country_code = manual_region
+            # Find the full region name for display
+            for continent, countries in REGIONS.items():
+                for name, code in countries:
+                    if code == country_code:
+                        region_name = name
+                        break
+                if region_name:
+                    break
+        else:
+            # Fallback to IP detection if no manual region is selected
+            try:
+                if request.headers.getlist("X-Forwarded-For"):
+                    ip_address = request.headers.getlist("X-Forwarded-For")[0]
+                else:
+                    ip_address = request.remote_addr
+                
+                if ip_address == '127.0.0.1':
+                    ip_address = '202.83.21.1'
 
-            # Call a free geolocation API to get country code from IP
-            api_response = requests.get(f'http://ip-api.com/json/{ip_address}?fields=country,countryCode')
-            api_response.raise_for_status()  # Raise an exception for HTTP errors
-            data = api_response.json()
-            country_code = data.get('countryCode')
-            region_name = data.get('country')
-            app.logger.info(f"Detected region '{region_name}' ({country_code}) for IP {ip_address}")
-        except requests.exceptions.RequestException as e:
-            app.logger.error(f"Could not detect region via IP address due to network error: {e}")
-        except Exception as e:
-            app.logger.error(f"An unexpected error occurred during IP geolocation: {e}")
+                api_response = requests.get(f'http://ip-api.com/json/{ip_address}?fields=country,countryCode')
+                api_response.raise_for_status()
+                data = api_response.json()
+                country_code = data.get('countryCode')
+                region_name = data.get('country')
+                app.logger.info(f"Detected region '{region_name}' ({country_code}) for IP {ip_address}")
+            except requests.exceptions.RequestException as e:
+                app.logger.error(f"Could not detect region via IP address due to network error: {e}")
+            except Exception as e:
+                app.logger.error(f"An unexpected error occurred during IP geolocation: {e}")
 
 
      # 1. Check for a search query and category from the user
@@ -155,7 +165,7 @@ def display_news():
         session.pop('combined_summaries', None)
 
     # 6. Render the main page with all the data
-    return render_template('index.html', entries_with_logos=entries_with_logos, summaries=summaries, user=user, search_query=search_query, category=category, region_name=region_name)
+    return render_template('index.html', entries_with_logos=entries_with_logos, summaries=summaries, user=user, search_query=search_query, category=category, region_name=region_name, regions=REGIONS)
 
 
 @app.route('/generate_audio') # Changed to GET, no longer needs POST
