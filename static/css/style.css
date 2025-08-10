@@ -77,10 +77,15 @@ main.container h1 {
     font-family: 'Playfair Display', Georgia, serif;
     font-size: 1.8rem; /* Adjust as needed */
     font-weight: 700;
-    color: #fff; /* Or a color that fits your design */
+    text-decoration: none;
+    color: white;
     /* Center the title */
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
     /* Add any other styling you want, e.g., text-shadow, letter-spacing */
+}
+
+.newspaper-title:hover {
+    color: white;
 }

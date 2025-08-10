@@ -30,6 +30,7 @@ from database import SessionLocal
 from extensions import cache
 
 app = Flask(__name__)
+app.debug = True
 app.secret_key = FLASK_SECRET_KEY
 # Load the persistent storage path into the app's config
 app.config['PERSISTENT_STORAGE_PATH'] = PERSISTENT_STORAGE_PATH
@@ -64,15 +65,17 @@ def display_news():
             # Use X-Forwarded-For header if behind a proxy, else fallback to remote_addr
             ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
             
-            # Skip for local IP addresses
-            if ip_address != '127.0.0.1':
-                # Call a free geolocation API to get country code from IP
-                api_response = requests.get(f'http://ip-api.com/json/{ip_address}?fields=country,countryCode')
-                api_response.raise_for_status()  # Raise an exception for HTTP errors
-                data = api_response.json()
-                country_code = data.get('countryCode')
-                region_name = data.get('country')
-                app.logger.info(f"Detected region '{region_name}' ({country_code}) for IP {ip_address}")
+            # If testing locally, use a sample Indian IP for demonstration
+            if ip_address == '127.0.0.1':
+                ip_address = '202.83.21.1' # Sample IP from India
+
+            # Call a free geolocation API to get country code from IP
+            api_response = requests.get(f'http://ip-api.com/json/{ip_address}?fields=country,countryCode')
+            api_response.raise_for_status()  # Raise an exception for HTTP errors
+            data = api_response.json()
+            country_code = data.get('countryCode')
+            region_name = data.get('country')
+            app.logger.info(f"Detected region '{region_name}' ({country_code}) for IP {ip_address}")
         except requests.exceptions.RequestException as e:
             app.logger.error(f"Could not detect region via IP address due to network error: {e}")
         except Exception as e:
@@ -148,21 +151,30 @@ def display_news():
 @app.route('/generate_audio') # Changed to GET, no longer needs POST
 def generate_audio():
     """Generates the news anchor script and audio file on-demand."""
-    cache.clear() # Clear cache to ensure a fresh attempt
+    app.logger.info("--- Starting Audio Generation ---")
+    cache.delete_memoized(rephrase_as_anchor) # Clear specific cache for a fresh AI call
+    
     combined_summaries = session.get('combined_summaries')
     if not combined_summaries:
+        app.logger.error("Audio generation failed: No summaries found in session.")
         return jsonify({'error': 'No summaries available to generate audio.'}), 404
+    app.logger.info(f"Summaries retrieved from session. Length: {len(combined_summaries)}")
 
     try:
+        app.logger.info("Requesting anchor script from AI...")
         anchor_script, usage_data = rephrase_as_anchor(combined_summaries)
-        # Handle cases where the AI might return an empty or invalid script
+        app.logger.info("Successfully received anchor script from AI.")
+        
         if not anchor_script or not anchor_script.strip():
             app.logger.error("AI service returned an empty anchor script.")
             return jsonify({'error': 'Failed to generate a valid news script from the AI service.'}), 500
     except RateLimitException:
+        app.logger.error("AI rate limit exceeded during anchor script generation.")
         return jsonify({'error': 'AI limit exceeded by the website server, please try again in 24 hours'}), 503
+    except Exception as e:
+        app.logger.error(f"An unexpected error occurred during anchor script generation: {e}")
+        return jsonify({'error': 'An internal error occurred while generating the news script.'}), 500
 
-    # Log the token usage for the rephrasing call
     if usage_data:
         user_id = None
         user_email = session.get('email')
@@ -183,24 +195,26 @@ def generate_audio():
     filename_hash = hashlib.md5(anchor_script.encode()).hexdigest()
     audio_filename = f"{filename_hash}.mp3"
 
-    # Save the audio file to the persistent storage location
     storage_path = app.config['PERSISTENT_STORAGE_PATH']
     os.makedirs(storage_path, exist_ok=True)
     audio_filepath = os.path.join(storage_path, audio_filename)
+    app.logger.info(f"Audio file will be saved to: {audio_filepath}")
 
     if not os.path.exists(audio_filepath):
         try:
-            app.logger.info(f"Generating new audio file: {audio_filepath}")
+            app.logger.info("Generating new audio file with gTTS...")
             tts = gTTS(text=anchor_script, lang='en')
             tts.save(audio_filepath)
             app.logger.info("Audio file saved successfully.")
         except Exception as e:
-            # This will catch errors from gTTS (e.g., network issues, empty text) or file system errors.
             app.logger.error(f"Failed to generate or save audio file with gTTS: {e}")
             return jsonify({'error': 'The server encountered an error while creating the audio file.'}), 500
+    else:
+        app.logger.info("Audio file already exists. Serving from cache.")
 
-    # Return a URL to our new route that serves files from the persistent disk
-    return jsonify({'audio_file': url_for('serve_media', filename=audio_filename)})
+    audio_url = url_for('serve_media', filename=audio_filename)
+    app.logger.info(f"--- Audio Generation Complete. Returning URL: {audio_url} ---")
+    return jsonify({'audio_file': audio_url})
 
 @app.route('/media/<path:filename>')
 def serve_media(filename):
