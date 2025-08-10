@@ -91,8 +91,8 @@ def get_all_users():
     """Fetches all users from the database using SQLAlchemy."""
     db = SessionLocal()
     try:
-        # Query for id and email of all users. This returns a list of tuples.
-        users = db.query(User.id, User.email).all()
+        # Query for all user objects to have access to their preferences.
+        users = db.query(User).all()
         return users
     except SQLAlchemyError as e:
         logging.critical(f"Database error when fetching users: {e}")
@@ -156,7 +156,7 @@ def generate_newscast_content(user_id):
 
     return anchor_script
 
-def create_media_files(anchor_script, user_id, output_folder):
+def create_media_files(anchor_script, user, output_folder):
     """Creates audio and video files from the anchor script."""
     date_str = datetime.date.today().isoformat()
     audio_filename = f"audiocast_{user_id}_{date_str}.mp3"

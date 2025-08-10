@@ -1,0 +1,8 @@
+feat: Implement category filtering and enhance UI
+
+This commit introduces the following changes:
+- Implemented news category filtering on the homepage, allowing users to view news by specific categories like Business, Technology, etc.
+- Added "MyNewsToGo" to the website header across all pages, styled to resemble a newspaper name for improved branding.
+- Corrected the `log_token_usage` function calls in `app.py` to properly pass the database session.
+- Updated `news_service.py` with enhanced logging and error handling for RSS feed parsing.
+- Updated the logo image.

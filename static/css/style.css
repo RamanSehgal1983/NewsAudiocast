@@ -17,6 +17,10 @@
 body {
     background-color: #f8f9fa; /* A light grey background for the page */
 }
+
+.navbar {
+    position: relative;
+}
 /* ==========================================================================
    2. News Item Card Styles
    ========================================================================== */
@@ -49,6 +53,9 @@ body {
 /* ==========================================================================
    3. Typography
    ========================================================================== */
+main.container h1 {
+    font-size: 2rem; /* Adjust as needed. Default is ~2.5rem */
+}
 
 .news-item .card-title a {
     text-decoration: none;
@@ -71,5 +78,9 @@ body {
     font-size: 1.8rem; /* Adjust as needed */
     font-weight: 700;
     color: #fff; /* Or a color that fits your design */
+    /* Center the title */
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     /* Add any other styling you want, e.g., text-shadow, letter-spacing */
 }

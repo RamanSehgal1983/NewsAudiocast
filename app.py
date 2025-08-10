@@ -10,6 +10,7 @@ web-based interactions, including:
 - Rendering HTML templates to display content to the user.
 """
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, g, send_from_directory
+import requests
 from gtts import gTTS
 import os
 import hashlib
@@ -50,18 +51,40 @@ def display_news():
     user_email = session.get('email')
     user = None
     user_id = None
+    country_code = None
+    region_name = None
 
     if user_email:
         user = g.db.query(User).filter_by(email=user_email).first()
         if user:
             user_id = user.id
+    else:
+        # For anonymous users, detect region from IP
+        try:
+            # Use X-Forwarded-For header if behind a proxy, else fallback to remote_addr
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            
+            # Skip for local IP addresses
+            if ip_address != '127.0.0.1':
+                # Call a free geolocation API to get country code from IP
+                api_response = requests.get(f'http://ip-api.com/json/{ip_address}?fields=country,countryCode')
+                api_response.raise_for_status()  # Raise an exception for HTTP errors
+                data = api_response.json()
+                country_code = data.get('countryCode')
+                region_name = data.get('country')
+                app.logger.info(f"Detected region '{region_name}' ({country_code}) for IP {ip_address}")
+        except requests.exceptions.RequestException as e:
+            app.logger.error(f"Could not detect region via IP address due to network error: {e}")
+        except Exception as e:
+            app.logger.error(f"An unexpected error occurred during IP geolocation: {e}")
+
 
      # 1. Check for a search query and category from the user
     search_query = request.args.get('q', None)
     category = request.args.get('category', 'Latest') # Default to 'Latest'
 
-    # 2. Centralized call to the news service
-    entries_with_logos = get_personalized_news(db=g.db, user_id=user_id, search_query=search_query, category=category)
+    # 2. Centralized call to the news service, now with country_code for anonymous users
+    entries_with_logos = get_personalized_news(db=g.db, user_id=user_id, search_query=search_query, category=category, country_code=country_code)
 
     # 3. Collect article content for summarization
     # We only process entries that have a 'summary' attribute from the RSS feed.
@@ -119,13 +142,13 @@ def display_news():
         session.pop('combined_summaries', None)
 
     # 6. Render the main page with all the data
-    # 6. Render the main page with all the data
-    return render_template('index.html', entries_with_logos=entries_with_logos, summaries=summaries, user=user, search_query=search_query, category=category)
+    return render_template('index.html', entries_with_logos=entries_with_logos, summaries=summaries, user=user, search_query=search_query, category=category, region_name=region_name)
 
 
 @app.route('/generate_audio') # Changed to GET, no longer needs POST
 def generate_audio():
     """Generates the news anchor script and audio file on-demand."""
+    cache.clear() # Clear cache to ensure a fresh attempt
     combined_summaries = session.get('combined_summaries')
     if not combined_summaries:
         return jsonify({'error': 'No summaries available to generate audio.'}), 404
@@ -361,4 +384,4 @@ def preferences():
 if __name__ == '__main__':
     with app.app_context():
         cache.clear()  # Clear the cache
-        app.run(debug=True)
+        app.run(debug=True, threaded=True)

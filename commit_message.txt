@@ -1,0 +1,7 @@
+fix: Resolve database session and token logging issues
+
+- Reinstated 'db' argument for 'get_personalized_news' in app.py to fix missing argument error.
+- Adjusted 'log_token_usage' calls in app.py to correctly pass the 'db' argument, aligning with updated 'token_db_logger.py'.
+- Updated 'token_db_logger.py' to accept 'db' as a parameter and handle database session management externally.
+- Added 'Politics' and 'Entertainment' categories to NEWS_FEEDS in constants.py.
+- Added 'psycopg2' to requirements.txt.
