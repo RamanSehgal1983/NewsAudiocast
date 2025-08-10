@@ -62,8 +62,11 @@ def display_news():
     else:
         # For anonymous users, detect region from IP
         try:
-            # Use X-Forwarded-For header if behind a proxy, else fallback to remote_addr
-            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            # Standard way to get the real IP address, even when behind a proxy.
+            if request.headers.getlist("X-Forwarded-For"):
+                ip_address = request.headers.getlist("X-Forwarded-For")[0]
+            else:
+                ip_address = request.remote_addr
             
             # If testing locally, use a sample Indian IP for demonstration
             if ip_address == '127.0.0.1':
